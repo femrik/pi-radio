@@ -825,12 +825,76 @@ async function loadStations(){
 }
 
 // 局選択
-function selectStation(st){
-  state.selectedStation = st;
-  stationList.querySelectorAll('.station-item').forEach(el=>{
-    el.classList.toggle('active', el.dataset.id === st.id);
-  });
-  updateNowPlaying({ station: st, program: {}, mode: 'live' });
+async function selectStation(st) {
+    state.selectedStation = st;
+    stationList.querySelectorAll('.station-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === st.id);
+    });
+
+    // 番組情報をリセット表示
+    npStation.textContent = st.name;
+    npTitle.textContent   = '取得中...';
+    npPfm.textContent     = '';
+
+    // 局クリック時に番組情報を取得
+    try {
+        const info = await fetchJSON(`/api/station_info/${st.id}`);
+        const np   = info.nowplaying || {};
+        updateNowPlaying({
+            station: st,
+            program: { title: np.title, pfm: np.pfm },
+            mode: state.isPlaying && state.selectedStation?.id === st.id ? state.mode : 'live',
+        });
+        // 今日のスケジュールをライブパネルに表示
+        renderTodaySchedule(info.programs || [], st.id);
+    } catch (e) {
+        npTitle.textContent = '— π Radio —';
+    }
+}
+
+function renderTodaySchedule(programs, stationId) {
+    // 既存の schedule エリアがあれば更新、なければ作成
+    let schedEl = document.getElementById('today-schedule');
+    if (!schedEl) {
+        schedEl = document.createElement('div');
+        schedEl.id = 'today-schedule';
+        schedEl.style.cssText = `
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; overflow: hidden;
+        `;
+        // ライブパネルの一番下に追加
+        document.getElementById('panel-live').appendChild(schedEl);
+    }
+
+    const header = `
+        <div style="padding:10px 16px; font-family:var(--font-mono);
+                    font-size:10px; letter-spacing:2px; color:var(--text-dim);
+                    border-bottom:1px solid var(--border)">
+            ◈ TODAY'S SCHEDULE
+        </div>`;
+
+    const rows = programs.map(p => {
+        const isNow = p.is_now;
+        const canTF = p.is_timefree;
+        const accent = isNow ? 'var(--accent)' : canTF ? 'var(--accent2)' : 'var(--text-dim)';
+        const badge  = isNow ? '▶ ON AIR' : canTF ? '⏪ TF' : '📅';
+        return `
+            <div style="display:flex; align-items:center; gap:12px;
+                        padding:8px 16px; border-bottom:1px solid var(--border);
+                        cursor:${canTF ? 'pointer' : 'default'};
+                        background:${isNow ? 'rgba(249,115,22,.07)' : 'transparent'}"
+                 onclick="${canTF ? `playTimefree({ft:'${p.ft}',to:'${p.to}',title:'${p.title.replace(/'/g,"\\'")}',pfm:'${(p.pfm||'').replace(/'/g,"\\'")}',ft_display:'${p.ft_display}',date_display:''}, '${stationId}')` : ''}">
+                <span style="font-family:var(--font-mono);font-size:11px;
+                             color:${accent};min-width:40px">${p.ft_display}</span>
+                <span style="flex:1;font-size:12px;overflow:hidden;
+                             text-overflow:ellipsis;white-space:nowrap;
+                             font-weight:${isNow?'700':'400'}">${p.title || '(タイトルなし)'}</span>
+                <span style="font-family:var(--font-mono);font-size:9px;
+                             color:${accent}">${badge}</span>
+            </div>`;
+    }).join('');
+
+    schedEl.innerHTML = header + rows;
 }
 
 // ── 再生・停止 ────────────────────────────────
@@ -869,8 +933,8 @@ btnPlay.addEventListener('click', async () => {
 });
 
 // タイムフリー再生
-async function playTimefree(prog){
-  const stId = tfSelect.value;
+async function playTimefree(prog, stationIdOverride) {
+    const stId = stationIdOverride || tfSelect.value;
   if(!stId){ toast('局を選んでください'); return; }
   const st = state.stations.find(s=>s.id===stId);
 
@@ -930,7 +994,7 @@ $('tf-load-btn').addEventListener('click', async () => {
       <div class="prog-time">${p.date_display}<br>${p.ft_display}</div>
       <div class="prog-info">
         <div class="prog-title">${p.title || '(タイトルなし)'}</div>
-        <div class="prog-pfm">${p.pfm || p.info || ''}</div>
+        <div class="prog-pfm">${p.pfm || ''}</div>
       </div>
       <div class="prog-play-btn" title="再生">▶</div>
     `;

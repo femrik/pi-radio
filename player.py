@@ -41,7 +41,7 @@ class Player:
                 # yt-dlp: 認証 & 実ストリーム取得
                 self._yt_proc = subprocess.Popen(
                     [
-                        "/home/razuo/.local/bin/yt-dlp",
+                        "yt-dlp",
                         "--no-playlist",
                         "--quiet",
                         "-o", "-",
@@ -54,7 +54,7 @@ class Player:
                 # mpv: yt-dlp から受け取った出力を再生
                 self._mpv_proc = subprocess.Popen(
                     [
-                        "/usr/bin/mpv",
+                        "mpv",
                         "--no-video",
                         f"--volume={self._volume}",
                         "-",

@@ -43,6 +43,12 @@ def api_stations():
     return jsonify(_stations)
 
 
+@app.route("/api/station_info/<station_id>")
+def api_station_info(station_id):
+    """局クリック時: 現在番組 + 今日のスケジュール一括取得"""
+    return jsonify(radiko.get_schedule(station_id))
+
+
 # ---------------------------------------------------------------
 # API: 再生
 # ---------------------------------------------------------------
